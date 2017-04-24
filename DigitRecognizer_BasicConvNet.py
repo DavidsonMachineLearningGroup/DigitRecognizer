@@ -25,11 +25,12 @@ image_size = 28  #224 before
 num_labels = 10
 num_channels = 1 # greyscale
 
-batch_size = 32
-patch_size = 3
-depth = 32
-num_hidden = 64
+# some knobs to turn
+LEARNING_RATE = 0.0001
 num_steps = 1050*30 # lets run for 30 epochs.   n=1050 steps per epoch at 33600 images with n=32 batchsize
+batch_size = 32
+num_hidden = 64 # number of neurons in FC layer (right before softmax layer)
+data_augmentation_prob = 0.05 # the probability of each data augmention filter
 
 def normalize_image (image_data): # convert values between -.5 and .5
    for i in range (image_data.shape[0]):
@@ -83,12 +84,12 @@ with graph.as_default():
                                             stddev=1e-1), name='weights_conv3')
   biases_conv3 = tf.Variable(tf.constant(0.0, shape=[64], dtype=tf.float32),
                         trainable=True, name='biases_conv3')
-  fc1w = tf.Variable(tf.truncated_normal([1024, 64], 
+  fc1w = tf.Variable(tf.truncated_normal([1024, num_hidden], 
                                                 dtype=tf.float32,
                                                 stddev=1e-1), name='weights') # 1024 from pool3.get_shape () of 4*4*64
-  fc1b = tf.Variable(tf.constant(1.0, shape=[64], dtype=tf.float32),
+  fc1b = tf.Variable(tf.constant(1.0, shape=[num_hidden], dtype=tf.float32),
                         trainable=True, name='biases')
-  fc2w = tf.Variable(tf.truncated_normal([64, num_labels],
+  fc2w = tf.Variable(tf.truncated_normal([num_hidden, num_labels],
                                                 dtype=tf.float32,
                                                 stddev=1e-1), name='weights')
   fc2b = tf.Variable(tf.constant(1.0, shape=[num_labels], dtype=tf.float32),
@@ -144,8 +145,8 @@ with graph.as_default():
          fc1 = tf.nn.relu(fc1l)
          parameters += [fc1w, fc1b]
 
-     # fc3
-     with tf.name_scope('fc3') as scope:
+     # fc2
+     with tf.name_scope('fcnum_hidden2') as scope:
          fc2l = tf.nn.bias_add(tf.matmul(fc1, fc2w), fc2b)
          parameters += [fc2w, fc2b]
      return fc2l;
@@ -156,7 +157,7 @@ with graph.as_default():
     tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf_train_labels))
     
   # Optimizer.
-  optimizer = tf.train.RMSPropOptimizer(0.0001).minimize(loss)
+  optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
   
   # Predictions for the training, validation, and test data.
   train_prediction = tf.nn.softmax(logits)
@@ -166,7 +167,7 @@ with graph.as_default():
   
 # Sometimes(0.5, ...) applies the given augmenter in 50% of all cases,
 # e.g. Sometimes(0.5, GaussianBlur(0.3)) would blur roughly every second image.
-st = lambda aug: iaa.Sometimes(0.25, aug)
+st = lambda aug: iaa.Sometimes(data_augmentation_prob, aug)
 
 # Define our sequence of augmentation steps that will be applied to every image
 # All augmenters with per_channel=0.5 will sample one value _per image_
@@ -196,24 +197,22 @@ seq = iaa.Sequential([
     random_order=True # do all of the above in random order
 )
 
-
-
 with tf.Session(graph=graph) as session:
-  tf.initialize_all_variables().run()
-  for step in range(num_steps):
-    offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
-    batch_data = np.copy (train_dataset[offset:(offset + batch_size), :, :, :]) # copying so a reference won't be created or else we'll be normalizing normalized stuff which would yield odd results
-    batch_data = seq.augment_images(batch_data.astype (np.uint8)).astype (np.float32); # add data augmentation
-    normalize_image (batch_data);
+   tf.global_variables_initializer().run ()
+   for step in range(num_steps):
+      offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
+      batch_data = np.copy (train_dataset[offset:(offset + batch_size), :, :, :]) # copying so a reference won't be created or else we'll be normalizing normalized stuff which would yield odd results
+      batch_data = seq.augment_images(batch_data.astype (np.uint8)).astype (np.float32); # add data augmentation
+      normalize_image (batch_data);
     
-    batch_labels = train_labels[offset:(offset + batch_size)]
-    feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
-    _, l, predictions = session.run(
-      [optimizer, loss, train_prediction], feed_dict=feed_dict)
-    if (step % 200 == 0):
-      print ("offset is %d" % (offset))
-      print ("Minibatch loss at step", step, ":", l)
-      print ("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
-      print ("Validation accuracy: %.1f%%" % accuracy(
-        valid_prediction.eval(), valid_labels))
+      batch_labels = train_labels[offset:(offset + batch_size)]
+      feed_dict = {tf_train_dataset : batch_data, tf_train_labels : batch_labels}
+      _, l, predictions = session.run(
+                                      [optimizer, loss, train_prediction], feed_dict=feed_dict)
+      if (step % 200 == 0):
+         print ("offset is %d" % (offset))
+         print ("Minibatch loss at step", step, ":", l)
+         print ("Minibatch accuracy: %.1f%%" % accuracy(predictions, batch_labels))
+         print ("Validation accuracy: %.1f%%" % accuracy(
+           valid_prediction.eval(), valid_labels))
 #  print "Test accuracy: %.1f%%" % accuracy(test_prediction.eval(), test_labels)
