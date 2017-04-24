@@ -29,7 +29,7 @@ batch_size = 32
 patch_size = 3
 depth = 32
 num_hidden = 64
-num_steps = 1050*10 # lets run for 10 epochs.   n=1050 steps per epoch at 33600 images with n=32 batchsize
+num_steps = 1050*30 # lets run for 30 epochs.   n=1050 steps per epoch at 33600 images with n=32 batchsize
 
 def normalize_image (image_data): # convert values between -.5 and .5
    for i in range (image_data.shape[0]):
@@ -166,7 +166,7 @@ with graph.as_default():
   
 # Sometimes(0.5, ...) applies the given augmenter in 50% of all cases,
 # e.g. Sometimes(0.5, GaussianBlur(0.3)) would blur roughly every second image.
-st = lambda aug: iaa.Sometimes(0.20, aug)
+st = lambda aug: iaa.Sometimes(0.25, aug)
 
 # Define our sequence of augmentation steps that will be applied to every image
 # All augmenters with per_channel=0.5 will sample one value _per image_
@@ -176,7 +176,7 @@ seq = iaa.Sequential([
 #        iaa.Fliplr(0.5), # horizontally flip 50% of all images
 #        iaa.Flipud(0.5), # vertically flip 50% of all images
         st(iaa.Crop(percent=(0, 0.03))), # crop images by 0-3% of their height/width
-        st(iaa.GaussianBlur((0, 1.0))), # blur images with a sigma between 0 and 1.0
+        st(iaa.GaussianBlur((0, 0.5))), # blur images with a sigma between 0 and 0.5
         st(iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.2), per_channel=0.5)), # add gaussian noise to images
         st(iaa.Dropout((0.0, 0.1), per_channel=0.5)), # randomly remove up to 10% of the pixels
         st(iaa.Add((-10, 10), per_channel=0.5)), # change brightness of images (by -10 to 10 of original value)
@@ -191,7 +191,7 @@ seq = iaa.Sequential([
             cval=(0, 1.0), # if mode is constant, use a cval between 0 and 1.0
             mode=ia.ALL # use any of scikit-image's warping modes (see 2nd image from the top for examples)
         )),
-        st(iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.25)) # apply elastic transformations with random strengths
+        st(iaa.ElasticTransformation(alpha=(0.5, 3.5), sigma=0.20)) # apply elastic transformations with random strengths
     ],
     random_order=True # do all of the above in random order
 )
