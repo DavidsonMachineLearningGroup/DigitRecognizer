@@ -5,12 +5,13 @@ import imgaug as ia
 from imgaug import augmenters as iaa 
 
 REMOTEDEBUG = True # set to True if debugging remotely
+REMOTEDEBUG = False
 if (REMOTEDEBUG == True):
-   # ssh -R 5678:localhost:5678 pal004@phoebe5.jefferson.edu
+   # ssh -R 5678:localhost:5678 kbhit@192.168.1.149 -p 49
    import pydevd
    from pydevd_file_utils import setup_client_server_paths
    MY_PATHS_FROM_ECLIPSE_TO_PYTHON = [
-       ('/Users/pal004/Documents/LiClipse Workspace/RemoteSystemsTempFiles/PHOEBE5.JEFFERSON.EDU/oceanus/scratch/pal004/svn/PhillipeMISC', '/oceanus/scratch/pal004/svn/PhillipeMISC'),
+       ('/Users/pal004/Documents/LiClipse Workspace/RemoteSystemsTempFiles/192.168.1.149/home/kbhit/git/DigitRecognizer', '/home/kbhit/git/DigitRecognizer'),
        ]
    setup_client_server_paths(MY_PATHS_FROM_ECLIPSE_TO_PYTHON)
    pydevd.settrace("localhost", port=5678, stdoutToServer=True, stderrToServer=True)
@@ -28,9 +29,7 @@ batch_size = 32
 patch_size = 3
 depth = 32
 num_hidden = 64
-num_steps = 1050*10 # n=1050 steps per epoch at 33600 images with n=32 batchsize
-
-
+num_steps = 1050*10 # lets run for 10 epochs.   n=1050 steps per epoch at 33600 images with n=32 batchsize
 
 def normalize_image (image_data): # convert values between -.5 and .5
    for i in range (image_data.shape[0]):
@@ -167,17 +166,17 @@ with graph.as_default():
   
 # Sometimes(0.5, ...) applies the given augmenter in 50% of all cases,
 # e.g. Sometimes(0.5, GaussianBlur(0.3)) would blur roughly every second image.
-st = lambda aug: iaa.Sometimes(0.5, aug)
+st = lambda aug: iaa.Sometimes(0.20, aug)
 
 # Define our sequence of augmentation steps that will be applied to every image
 # All augmenters with per_channel=0.5 will sample one value _per image_
 # in 50% of all cases. In all other cases they will sample new values
 # _per channel_.
 seq = iaa.Sequential([
-        iaa.Fliplr(0.5), # horizontally flip 50% of all images
-        iaa.Flipud(0.5), # vertically flip 50% of all images
-        st(iaa.Crop(percent=(0, 0.1))), # crop images by 0-10% of their height/width
-        st(iaa.GaussianBlur((0, 3.0))), # blur images with a sigma between 0 and 3.0
+#        iaa.Fliplr(0.5), # horizontally flip 50% of all images
+#        iaa.Flipud(0.5), # vertically flip 50% of all images
+        st(iaa.Crop(percent=(0, 0.03))), # crop images by 0-3% of their height/width
+        st(iaa.GaussianBlur((0, 1.0))), # blur images with a sigma between 0 and 1.0
         st(iaa.AdditiveGaussianNoise(loc=0, scale=(0.0, 0.2), per_channel=0.5)), # add gaussian noise to images
         st(iaa.Dropout((0.0, 0.1), per_channel=0.5)), # randomly remove up to 10% of the pixels
         st(iaa.Add((-10, 10), per_channel=0.5)), # change brightness of images (by -10 to 10 of original value)
@@ -185,9 +184,9 @@ seq = iaa.Sequential([
         st(iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5)), # improve or worsen the contrast
         st(iaa.Affine(
             scale={"x": (0.8, 1.2), "y": (0.8, 1.2)}, # scale images to 80-120% of their size, individually per axis
-            translate_px={"x": (-16, 16), "y": (-16, 16)}, # translate by -16 to +16 pixels (per axis)
+            translate_px={"x": (-8, 8), "y": (-8, 8)}, # translate by -8 to +8 pixels (per axis)
             rotate=(-45, 45), # rotate by -45 to +45 degrees
-            shear=(-16, 16), # shear by -16 to +16 degrees
+            shear=(-8, 8), # shear by -8 to +8 degrees
             order=ia.ALL, # use any of scikit-image's interpolation methods
             cval=(0, 1.0), # if mode is constant, use a cval between 0 and 1.0
             mode=ia.ALL # use any of scikit-image's warping modes (see 2nd image from the top for examples)
@@ -204,7 +203,7 @@ with tf.Session(graph=graph) as session:
   for step in range(num_steps):
     offset = (step * batch_size) % (train_labels.shape[0] - batch_size)
     batch_data = np.copy (train_dataset[offset:(offset + batch_size), :, :, :]) # copying so a reference won't be created or else we'll be normalizing normalized stuff which would yield odd results
-#    batch_data = seq.augment_images(batch_data.astype (np.uint8)).astype (np.float32); # add data augmentation
+    batch_data = seq.augment_images(batch_data.astype (np.uint8)).astype (np.float32); # add data augmentation
     normalize_image (batch_data);
     
     batch_labels = train_labels[offset:(offset + batch_size)]
