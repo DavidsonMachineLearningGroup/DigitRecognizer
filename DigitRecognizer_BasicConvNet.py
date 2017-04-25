@@ -26,7 +26,7 @@ num_labels = 10
 num_channels = 1 # greyscale
 
 # some knobs to turn
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.0001 
 num_steps = 1050*30 # lets run for 30 epochs.   n=1050 steps per epoch at 33600 images with n=32 batchsize
 batch_size = 32
 num_hidden = 64 # number of neurons in FC layer (right before softmax layer)
